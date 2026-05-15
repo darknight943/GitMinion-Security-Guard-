@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
     const riskScore = calculateRiskScore(osvResults);
     const vulnerableCount = osvResults.filter(r => r.vulns.length > 0).length;
 
+    // Check for large package.json
+    const warning = deps.length > 50 ? 'Large package.json: showing top 50 deps only' : undefined;
+
     // Step 4: Create TransformStream for streaming response
     const encoder = new TextEncoder();
     const stream = new TransformStream({
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
             riskScore,
             totalDeps: deps.length,
             vulnerableCount,
+            ...(warning && { warning }),
           };
           controller.enqueue(encoder.encode(JSON.stringify(meta) + '\n'));
 
@@ -103,6 +107,7 @@ OSV Data: ${JSON.stringify(vuln, null, 2)}`;
 
               // Parse Groq response
               let groqData;
+              let rawAnalysis: string | undefined;
               try {
                 groqData = JSON.parse(groqResponse);
               } catch {
@@ -112,6 +117,7 @@ OSV Data: ${JSON.stringify(vuln, null, 2)}`;
                   impact: 'Unknown',
                   fix: 'No fix available',
                 };
+                rawAnalysis = groqResponse;
               }
 
               // Emit vuln object
@@ -124,6 +130,7 @@ OSV Data: ${JSON.stringify(vuln, null, 2)}`;
                 impact: groqData.impact || 'Unknown',
                 severity: groqData.severity || 'Medium',
                 fix: groqData.fix || 'No fix available',
+                ...(rawAnalysis && { rawAnalysis }),
               };
               controller.enqueue(encoder.encode(JSON.stringify(vulnData) + '\n'));
             }

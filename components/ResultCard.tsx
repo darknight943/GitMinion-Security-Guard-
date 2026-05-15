@@ -25,6 +25,7 @@ interface ResultCardProps {
   what: string;
   impact: string;
   fix: string;
+  rawAnalysis?: string;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -50,6 +51,7 @@ export default function ResultCard({
   what,
   impact,
   fix,
+  rawAnalysis,
 }: ResultCardProps) {
   const [copied, setCopied] = useState(false);
 
@@ -77,14 +79,23 @@ export default function ResultCard({
         {/* What's broken */}
         <div>
           <h4 className="text-sm font-semibold text-muted-foreground mb-2">What&apos;s broken:</h4>
-          <p className="text-sm">{what}</p>
+          {rawAnalysis ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-2">Raw analysis:</p>
+              <p className="text-sm font-mono bg-muted p-2 rounded">{rawAnalysis}</p>
+            </>
+          ) : (
+            <p className="text-sm">{what}</p>
+          )}
         </div>
 
-        {/* Impact */}
-        <div>
-          <h4 className="text-sm font-semibold text-muted-foreground mb-2">Impact:</h4>
-          <p className="text-sm">{impact}</p>
-        </div>
+        {/* Impact - only show if not raw analysis */}
+        {!rawAnalysis && (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Impact:</h4>
+            <p className="text-sm">{impact}</p>
+          </div>
+        )}
 
         {/* Fix */}
         <div>

@@ -16,12 +16,12 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const inter = Inter({ subsets: ["latin"] });
 
 /**
- * Metadata for the GN Security application
+ * Metadata for the DepSentry application
  * Used for SEO and browser display
  */
 export const metadata: Metadata = {
-  title: "GN Security",
-  description: "Vulnerability Scanner",
+  title: "DepSentry — npm Vulnerability Scanner",
+  description: "Paste your package.json and get instant AI-powered vulnerability explanations",
 };
 
 /**
@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
-      <body className={inter.className}>{children}</body>
+      <body className={cn(inter.className, "bg-[#09090b] text-foreground")}>{children}</body>
     </html>
   );
 }

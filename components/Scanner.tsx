@@ -27,6 +27,7 @@ interface VulnResult {
   impact: string;
   severity: 'Low' | 'Medium' | 'High' | 'Critical';
   fix: string;
+  rawAnalysis?: string;
 }
 
 interface MetaResult {
@@ -34,6 +35,7 @@ interface MetaResult {
   riskScore: number;
   totalDeps: number;
   vulnerableCount: number;
+  warning?: string;
 }
 
 export default function Scanner() {
@@ -45,9 +47,28 @@ export default function Scanner() {
   const [vulnerableCount, setVulnerableCount] = useState(0);
   const [vulns, setVulns] = useState<VulnResult[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [jsonError, setJsonError] = useState('');
+  const [warning, setWarning] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleJsonChange = (value: string) => {
+    setPackageJson(value);
+    try {
+      JSON.parse(value);
+      setJsonError('');
+    } catch {
+      setJsonError('⚠ Invalid JSON');
+    }
+  };
 
   const handleScan = async () => {
+    if (jsonError) {
+      setErrorMessage(jsonError);
+      setStatus('error');
+      return;
+    }
+
     setStatus('scanning');
     setStatusMessage('Parsing dependencies...');
     setVulns([]);
@@ -55,6 +76,12 @@ export default function Scanner() {
     setTotalDeps(0);
     setVulnerableCount(0);
     setErrorMessage('');
+    setWarning('');
+
+    abortControllerRef.current = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortControllerRef.current?.abort();
+    }, 15000);
 
     try {
       const response = await fetch('/api/scan', {
@@ -63,7 +90,10 @@ export default function Scanner() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ packageJson }),
+        signal: abortControllerRef.current.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -99,6 +129,7 @@ export default function Scanner() {
               setRiskScore(meta.riskScore);
               setTotalDeps(meta.totalDeps);
               setVulnerableCount(meta.vulnerableCount);
+              setWarning(meta.warning || '');
               setStatusMessage('Groq is analyzing vulnerabilities...');
             } else if (chunk.type === 'vuln') {
               const vuln = chunk as VulnResult;
@@ -112,9 +143,26 @@ export default function Scanner() {
 
       setStatus('done');
     } catch (error) {
-      setStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred');
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        setStatus('error');
+        setErrorMessage('Request timed out. Try again.');
+      } else {
+        setStatus('error');
+        setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred');
+      }
     }
+  };
+
+  const handleScanAgain = () => {
+    setStatus('idle');
+    setVulns([]);
+    setRiskScore(null);
+    setTotalDeps(0);
+    setVulnerableCount(0);
+    setErrorMessage('');
+    setWarning('');
+    textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const { label: scoreLabel, color: scoreColor } = getScoreLabel(riskScore || 0);
@@ -137,13 +185,16 @@ export default function Scanner() {
           <textarea
             ref={textareaRef}
             value={packageJson}
-            onChange={(e) => setPackageJson(e.target.value)}
+            onChange={(e) => handleJsonChange(e.target.value)}
             className="w-full h-80 bg-card border border-border rounded-lg p-4 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Paste your package.json here..."
           />
+          {jsonError && (
+            <p className="mt-2 text-sm text-red-400">{jsonError}</p>
+          )}
           <button
             onClick={handleScan}
-            disabled={status === 'scanning'}
+            disabled={status === 'scanning' || jsonError !== ''}
             className="mt-4 w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {status === 'scanning' ? (
@@ -170,11 +221,23 @@ export default function Scanner() {
         {/* Results Section */}
         {status === 'done' && (
           <div className="space-y-6">
+            {/* Warning Banner */}
+            {warning && (
+              <div className="p-4 bg-yellow-950/30 border border-yellow-500/30 rounded-lg">
+                <p className="text-sm text-yellow-400">⚠ {warning}</p>
+              </div>
+            )}
             {vulnerableCount === 0 ? (
               <div className="p-8 bg-green-950/30 border border-green-500/30 rounded-lg text-center">
                 <div className="text-6xl mb-4">✓</div>
                 <h2 className="text-2xl font-bold text-green-400 mb-2">All Clear!</h2>
                 <p className="text-muted-foreground">No known vulnerabilities found.</p>
+                <button
+                  onClick={handleScanAgain}
+                  className="mt-4 bg-primary text-primary-foreground py-2 px-6 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  Scan Again
+                </button>
               </div>
             ) : (
               <>
@@ -201,9 +264,18 @@ export default function Scanner() {
                       what={vuln.what}
                       impact={vuln.impact}
                       fix={vuln.fix}
+                      rawAnalysis={vuln.rawAnalysis}
                     />
                   ))}
                 </div>
+
+                {/* Scan Again Button */}
+                <button
+                  onClick={handleScanAgain}
+                  className="w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  Scan Again
+                </button>
               </>
             )}
           </div>
