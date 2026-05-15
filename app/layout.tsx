@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
-      <body className={cn(inter.className, "bg-[#09090b] text-foreground")}>{children}</body>
+      <body className={cn(inter.className, "bg-background text-foreground")}>{children}</body>
     </html>
   );
 }
